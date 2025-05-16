@@ -18,6 +18,7 @@ struct QueryCocktailView: View {
   @State private var selectedCocktailName: String? = nil
   @State private var selectedFavoriteForAdd: String? = nil
   @StateObject private var viewModel: QueryCocktailViewModel
+  @State private var isSheetReady = false
 
   init(modelContainer: ModelContainer) {
     self.modelContainer = modelContainer
@@ -72,9 +73,14 @@ struct QueryCocktailView: View {
             Section("Search Results") {
               ForEach(searchResults, id: \.self) { cocktailName in
                 Button(action: {
-                  selectedCocktailName = cocktailName
-                  selectedFavoriteForAdd = favorites.first?.name
-                  showAddSheet = true
+                  Task {
+                    selectedCocktailName = cocktailName
+                    // Ensure favorites are loaded before showing sheet
+                    try? await refreshData()
+                    selectedFavoriteForAdd = favorites.first?.name
+                    isSheetReady = true
+                    showAddSheet = true
+                  }
                 }) {
                   Text(cocktailName)
                     .foregroundColor(.primary)
@@ -111,7 +117,7 @@ struct QueryCocktailView: View {
         } else {
           List {
             ForEach(favorites, id: \.name) { favorite in
-              NavigationLink(value: favorite) {
+              NavigationLink(value: favorite.name) {
                 VStack(alignment: .leading) {
                   Text(favorite.name)
                     .font(.headline)
@@ -136,15 +142,19 @@ struct QueryCocktailView: View {
         }
       }
       .navigationTitle("Cocktail Favorites")
-      .navigationDestination(for: FavoritesDTO.self) { favorite in
-        DetailFavoriteView(favorite: favorite, modelContainer: modelContainer)
+      .navigationDestination(for: String.self) { favoriteName in
+        DetailFavoriteView(favoriteName: favoriteName, modelContainer: modelContainer)
       }
       .task {
         print("[View] QueryCocktailView .task (onAppear)")
         try? await refreshData()
       }
-      .sheet(isPresented: $showAddSheet) {
-        if let cocktailName = selectedCocktailName {
+      .sheet(isPresented: $showAddSheet, onDismiss: {
+        Task {
+          try? await refreshData()
+        }
+      }) {
+        if let cocktailName = selectedCocktailName, isSheetReady {
           VStack(spacing: 20) {
             Text("Add \(cocktailName) to a Favorites List")
               .font(.headline)
@@ -160,12 +170,14 @@ struct QueryCocktailView: View {
                   try? await viewModel.addCocktailToFavorite(cocktailName: cocktailName, favoriteName: favoriteName)
                   try? await refreshData()
                   showAddSheet = false
+                  isSheetReady = false
                 }
               }
             }
             .buttonStyle(.borderedProminent)
             Button("Cancel", role: .cancel) {
               showAddSheet = false
+              isSheetReady = false
             }
           }
           .padding()

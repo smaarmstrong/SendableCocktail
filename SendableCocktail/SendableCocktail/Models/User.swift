@@ -6,7 +6,8 @@ import SwiftData
 @Model
 class User {
   var name: String
-  @Relationship(deleteRule: .cascade)
+  
+  @Relationship(deleteRule: .cascade, inverse: \Favorites.user)
   var favorites: [Favorites]?
 
   init(

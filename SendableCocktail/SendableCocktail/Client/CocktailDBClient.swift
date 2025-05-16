@@ -6,6 +6,7 @@ import Foundation
 actor CocktailDBClient {
   private let baseURL = "https://www.thecocktaildb.com/api/json/v1/1"
   private var cachedResults: [String] = []
+  private let stringDistance = StringDistance()
 
   func searchCocktails(query: String) async throws -> [String] {
     let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
@@ -19,7 +20,7 @@ actor CocktailDBClient {
 
     // If we have cached results, also look for fuzzy matches
     if !cachedResults.isEmpty {
-      let fuzzyMatches = StringDistance.findNearMatches(
+      let fuzzyMatches = await stringDistance.findNearMatches(
         query: query,
         candidates: cachedResults.filter { !exactMatches.contains($0) }
       )

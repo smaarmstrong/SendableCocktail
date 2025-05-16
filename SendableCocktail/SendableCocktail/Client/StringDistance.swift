@@ -1,10 +1,10 @@
 import Foundation
 
-/// Utility for calculating string distances and finding near matches.
+/// Actor for calculating string distances and finding near matches.
 /// Used for fuzzy searching cocktail names (Levenshtein distance) in The Cocktail DB client.
-enum StringDistance {
+actor StringDistance {
   /// Calculate the Levenshtein distance between two strings
-  static func levenshtein(_ s1: String, _ s2: String) -> Int {
+  func levenshtein(_ s1: String, _ s2: String) -> Int {
     let s1 = s1.lowercased()
     let s2 = s2.lowercased()
 
@@ -27,7 +27,7 @@ enum StringDistance {
   ///   - candidates: Array of strings to search through
   ///   - maxDistance: Maximum allowed Levenshtein distance (default: 3)
   /// - Returns: Array of strings that are within the maximum distance
-  static func findNearMatches(query: String, candidates: [String], maxDistance: Int = 3) -> [String] {
+  func findNearMatches(query: String, candidates: [String], maxDistance: Int = 3) -> [String] {
     candidates.filter { candidate in
       levenshtein(query, candidate) <= maxDistance
     }

@@ -6,7 +6,8 @@ import SwiftData
 @Model
 class Cocktail {
   var name: String
-  @Relationship(deleteRule: .cascade)
+  
+  @Relationship(deleteRule: .nullify)
   var favorites: [Favorites]?
 
   init(

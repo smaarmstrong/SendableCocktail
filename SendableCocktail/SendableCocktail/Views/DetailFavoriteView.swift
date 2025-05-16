@@ -4,24 +4,27 @@ import SwiftUI
 /// View that displays the details of a favorite cocktail list.
 /// Shows all cocktails in a favorite list and allows removing cocktails from the list.
 struct DetailFavoriteView: View {
-  let favorite: FavoritesDTO
+  let favoriteName: String
   let modelContainer: ModelContainer
   @State private var isFetching = false
   @State private var cocktails: [CocktailDTO] = []
-  var viewModel: QueryCocktailViewModel
+  @State private var favorite: FavoritesDTO? = nil
+  @StateObject private var viewModel: QueryCocktailViewModel
+  @State private var shouldRefresh = false
+  @Environment(\.dismiss) private var dismiss
 
-  init(favorite: FavoritesDTO, modelContainer: ModelContainer) {
-    self.favorite = favorite
+  init(favoriteName: String, modelContainer: ModelContainer) {
+    self.favoriteName = favoriteName
     self.modelContainer = modelContainer
-    viewModel = QueryCocktailViewModel(modelContainer: modelContainer)
-    print("[DetailView] Initialized for favorite: \(favorite.name)")
+    _viewModel = StateObject(wrappedValue: QueryCocktailViewModel(modelContainer: modelContainer))
+    print("[DetailView] Initialized for favorite: \(favoriteName)")
   }
 
   var body: some View {
     List {
       if isFetching {
         ProgressView("Loading...")
-      } else if !cocktails.isEmpty {
+      } else if let favorite = favorite, !cocktails.isEmpty {
         ForEach(cocktails, id: \.name) { cocktail in
           HStack {
             Text(cocktail.name)
@@ -34,7 +37,9 @@ struct DetailFavoriteView: View {
                   cocktailName: cocktail.name,
                   favoriteName: favorite.name
                 )
+                shouldRefresh = true
                 try? await refreshData()
+                await checkIfFavoriteStillExists()
               }
             } label: {
               Image(systemName: "minus.circle.fill")
@@ -46,28 +51,53 @@ struct DetailFavoriteView: View {
         ContentUnavailableView("No Cocktails", systemImage: "wineglass")
       }
     }
-    .navigationTitle(favorite.name)
+    .navigationTitle(favoriteName)
     .navigationBarTitleDisplayMode(.inline)
     .task {
-      print("[DetailView] .task (onAppear) for favorite: \(favorite.name)")
-      if cocktails.isEmpty {
-        cocktails = favorite.cocktails ?? []
-      }
+      print("[DetailView] .task (onAppear) for favorite: \(favoriteName)")
       try? await refreshData()
+      await checkIfFavoriteStillExists()
+    }
+    .onChange(of: shouldRefresh) { _, newValue in
+      if newValue {
+        Task {
+          try? await refreshData()
+          shouldRefresh = false
+          await checkIfFavoriteStillExists()
+        }
+      }
+    }
+    .onChange(of: favoriteName) { _, _ in
+      Task {
+        try? await refreshData()
+        await checkIfFavoriteStillExists()
+      }
     }
   }
 
   private func refreshData() async throws {
-    print("[DetailView] refreshData called for favorite: \(favorite.name)")
+    print("[DetailView] refreshData called for favorite: \(favoriteName)")
     isFetching = true
     defer { isFetching = false }
 
     let fetchedFavorites = try await viewModel.backgroundFetchFavorites()
-    if let updatedFavorite = fetchedFavorites.first(where: { $0.name == favorite.name }) {
+    if let updatedFavorite = fetchedFavorites.first(where: { $0.name == favoriteName }) {
+      favorite = updatedFavorite
       cocktails = updatedFavorite.cocktails ?? []
       print("[DetailView] refreshData result: cocktails=\(cocktails.map { $0.name })")
     } else {
+      favorite = nil
+      cocktails = []
       print("[DetailView] refreshData: favorite not found")
+    }
+  }
+
+  @MainActor
+  private func checkIfFavoriteStillExists() async {
+    let fetchedFavorites = try? await viewModel.backgroundFetchFavorites()
+    let stillExists = fetchedFavorites?.contains(where: { $0.name == favoriteName }) ?? false
+    if !stillExists {
+      dismiss()
     }
   }
 }

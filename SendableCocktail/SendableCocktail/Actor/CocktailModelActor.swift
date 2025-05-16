@@ -89,7 +89,7 @@ actor CocktailModelActor: Sendable {
   func fetchFavorites(forUser user: UserDTO?) async throws -> [FavoritesDTO] {
     print("[ModelActor] Fetching favorites for user: \(user?.name ?? "none")")
     let fetchDescriptor: FetchDescriptor<Favorites>
-    
+
     if let userName = user?.name {
       let predicate = #Predicate<Favorites> { favorite in
         favorite.user?.name == userName
@@ -102,7 +102,7 @@ actor CocktailModelActor: Sendable {
       }
       fetchDescriptor = FetchDescriptor<Favorites>(predicate: predicate, sortBy: [SortDescriptor(\Favorites.name)])
     }
-    
+
     let favorites: [Favorites] = try context.fetch(fetchDescriptor)
     print("[ModelActor] Fetched favorites: \(favorites.map { $0.name })")
     return favorites.map { favorite in
@@ -148,9 +148,21 @@ actor CocktailModelActor: Sendable {
     let fetchDescriptor = FetchDescriptor<Favorites>(predicate: predicate)
     let favorites = try context.fetch(fetchDescriptor)
 
-    for favorite in favorites {
+    // Make a copy of the favorites to delete to avoid modifying during iteration
+    let favoritesToDelete = favorites
+
+    for favorite in favoritesToDelete {
+      // Properly handle relationships before deletion
+      if let cocktails = favorite.cocktails {
+        for cocktail in cocktails {
+          cocktail.favorites?.removeAll { $0.name == favorite.name }
+        }
+      }
+
+      // Then delete the favorite
       context.delete(favorite)
     }
+
     try context.save()
     print("[ModelActor] Deleted favorites named: \(name)")
   }

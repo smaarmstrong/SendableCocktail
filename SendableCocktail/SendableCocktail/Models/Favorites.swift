@@ -6,9 +6,10 @@ import SwiftData
 @Model
 class Favorites {
   var name: String
-  @Relationship(deleteRule: .cascade)
+  
+  @Relationship(deleteRule: .nullify, inverse: \Cocktail.favorites)
   var cocktails: [Cocktail]?
-  @Relationship(inverse: \User.favorites)
+  
   var user: User?
 
   init(
@@ -38,10 +39,11 @@ final class FavoritesDTO: Sendable, Identifiable, Hashable {
   }
 
   static func == (lhs: FavoritesDTO, rhs: FavoritesDTO) -> Bool {
-    lhs.name == rhs.name
+    lhs.name == rhs.name && lhs.cocktails?.map { $0.name } == rhs.cocktails?.map { $0.name }
   }
 
   func hash(into hasher: inout Hasher) {
     hasher.combine(name)
+    hasher.combine(cocktails?.map { $0.name }.joined(separator: ",") ?? "")
   }
 }
