@@ -2,14 +2,32 @@ import SwiftUI
 import SwiftData
 
 /// ViewModel responsible for managing cocktail queries and favorites operations.
-/// Handles background fetching of cocktails and favorites, as well as managing favorite lists.
-@Observable
+/// - Handles searching for cocktails (with fuzzy matching) using The Cocktail DB API.
+/// - Presents search results for user selection and manages adding cocktails to favorites lists.
+/// - Handles background fetching and CRUD operations for cocktails and favorites.
 final class QueryCocktailViewModel: Sendable {
     let modelContainer: ModelContainer
+    private let cocktailDBClient: CocktailDBClient
     
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
+        self.cocktailDBClient = CocktailDBClient()
         print("[ViewModel] Initialized with modelContainer: \(modelContainer)")
+        
+        // Populate the cache in the background
+        Task {
+            do {
+                try await cocktailDBClient.populateCache()
+                print("[ViewModel] Cache populated successfully")
+            } catch {
+                print("[ViewModel] Failed to populate cache: \(error)")
+            }
+        }
+    }
+    
+    func searchCocktails(query: String) async throws -> [String] {
+        print("[ViewModel] searchCocktails called with query: \(query)")
+        return try await cocktailDBClient.searchCocktails(query: query)
     }
     
     func backgroundFetchCocktails() async throws -> [CocktailDTO] {

@@ -2,14 +2,21 @@ import SwiftUI
 import SwiftData
 
 /// Main view for managing cocktail favorites.
-/// Allows creating new favorite lists, adding cocktails to favorites, and viewing favorite lists.
+/// - Users can search for cocktails using The Cocktail DB API (with fuzzy matching).
+/// - Tapping a search result presents a modal to select a favorites list and add the cocktail.
+/// - Users can create new favorites lists and view/edit their contents.
 struct QueryCocktailView: View {
     let modelContainer: ModelContainer
     @State private var isFetching = false
     @State private var cocktails: [CocktailDTO] = []
     @State private var favorites: [FavoritesDTO] = []
     @State private var newFavoriteName = ""
-    @State private var selectedFavorite: String?
+    @State private var searchQuery = ""
+    @State private var searchResults: [String] = []
+    @State private var isSearching = false
+    @State private var showAddSheet = false
+    @State private var selectedCocktailName: String? = nil
+    @State private var selectedFavoriteForAdd: String? = nil
     var viewModel: QueryCocktailViewModel
     
     init(modelContainer: ModelContainer) {
@@ -21,6 +28,47 @@ struct QueryCocktailView: View {
     var body: some View {
         NavigationStack {
             VStack {
+                // Search field
+                HStack {
+                    TextField("Search cocktails...", text: $searchQuery)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: searchQuery) { _, newValue in
+                            Task {
+                                if !newValue.isEmpty {
+                                    isSearching = true
+                                    do {
+                                        searchResults = try await viewModel.searchCocktails(query: newValue)
+                                    } catch {
+                                        print("[View] Search error: \(error)")
+                                        searchResults = []
+                                    }
+                                    isSearching = false
+                                } else {
+                                    searchResults = []
+                                }
+                            }
+                        }
+                }
+                .padding()
+                
+                // Search results
+                if !searchResults.isEmpty {
+                    List {
+                        Section("Search Results") {
+                            ForEach(searchResults, id: \.self) { cocktailName in
+                                Button(action: {
+                                    selectedCocktailName = cocktailName
+                                    selectedFavoriteForAdd = favorites.first?.name
+                                    showAddSheet = true
+                                }) {
+                                    Text(cocktailName)
+                                        .foregroundColor(.primary)
+                                }
+                            }
+                        }
+                    }
+                }
+                
                 // Create new favorites list
                 HStack {
                     TextField("New favorites list name", text: $newFavoriteName)
@@ -39,68 +87,23 @@ struct QueryCocktailView: View {
                 }
                 .padding()
                 
-                // Favorites list picker
-                if !favorites.isEmpty {
-                    Picker("Select Favorites List", selection: $selectedFavorite) {
-                        Text("Select a list").tag(nil as String?)
-                        ForEach(favorites, id: \.name) { favorite in
-                            Text(favorite.name).tag(favorite.name as String?)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .padding()
-                }
-                
-                // Cocktail buttons
-                if let selectedFavorite = selectedFavorite {
-                    VStack(spacing: 20) {
-                        Text("Add to \(selectedFavorite)")
-                            .font(.headline)
-                        
-                        ForEach(["Mojito", "Margarita", "Old Fashioned"], id: \.self) { cocktailName in
-                            Button(cocktailName) {
-                                print("[View] Add cocktail button tapped: \(cocktailName) to \(selectedFavorite)")
-                                Task {
-                                    try await viewModel.addCocktailToFavorite(
-                                        cocktailName: cocktailName,
-                                        favoriteName: selectedFavorite
-                                    )
-                                    try await refreshData()
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                    .padding()
-                }
-                
-                // Refresh button
-                Button("Refresh Data") {
-                    print("[View] Refresh button tapped")
-                    Task {
-                        try await refreshData()
-                    }
-                }
-                .buttonStyle(.bordered)
-                .padding()
-                
                 if isFetching {
                     ProgressView("Loading...")
+                }
+                
+                if favorites.isEmpty {
+                    ContentUnavailableView("No Favorites Lists", systemImage: "star.slash")
                 } else {
-                    if favorites.isEmpty {
-                        ContentUnavailableView("No Favorites Lists", systemImage: "star.slash")
-                    } else {
-                        List {
-                            ForEach(favorites, id: \.name) { favorite in
-                                NavigationLink(value: favorite) {
-                                    VStack(alignment: .leading) {
-                                        Text(favorite.name)
-                                            .font(.headline)
-                                        if let cocktails = favorite.cocktails, !cocktails.isEmpty {
-                                            Text("Cocktails: \(cocktails.map { $0.name }.joined(separator: ", "))")
-                                                .font(.subheadline)
-                                                .foregroundColor(.secondary)
-                                        }
+                    List {
+                        ForEach(favorites, id: \.name) { favorite in
+                            NavigationLink(value: favorite) {
+                                VStack(alignment: .leading) {
+                                    Text(favorite.name)
+                                        .font(.headline)
+                                    if let cocktails = favorite.cocktails, !cocktails.isEmpty {
+                                        Text("Cocktails: \(cocktails.map { $0.name }.joined(separator: ", "))")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
                                     }
                                 }
                             }
@@ -115,6 +118,34 @@ struct QueryCocktailView: View {
             .task {
                 print("[View] QueryCocktailView .task (onAppear)")
                 try? await refreshData()
+            }
+            .sheet(isPresented: $showAddSheet) {
+                if let cocktailName = selectedCocktailName {
+                    VStack(spacing: 20) {
+                        Text("Add \(cocktailName) to a Favorites List")
+                            .font(.headline)
+                        Picker("Select Favorites List", selection: $selectedFavoriteForAdd) {
+                            ForEach(favorites, id: \.name) { favorite in
+                                Text(favorite.name).tag(favorite.name as String?)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        Button("Add to List") {
+                            if let favoriteName = selectedFavoriteForAdd {
+                                Task {
+                                    try? await viewModel.addCocktailToFavorite(cocktailName: cocktailName, favoriteName: favoriteName)
+                                    try? await refreshData()
+                                    showAddSheet = false
+                                }
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button("Cancel", role: .cancel) {
+                            showAddSheet = false
+                        }
+                    }
+                    .padding()
+                }
             }
         }
     }

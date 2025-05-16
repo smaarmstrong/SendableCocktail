@@ -109,7 +109,7 @@ actor CocktailModelActor: Sendable {
         let cocktailDescriptor = FetchDescriptor<Cocktail>(predicate: cocktailPredicate)
         let favoriteDescriptor = FetchDescriptor<Favorites>(predicate: favoritePredicate)
         
-        var cocktails = try context.fetch(cocktailDescriptor)
+        let cocktails = try context.fetch(cocktailDescriptor)
         let favorites = try context.fetch(favoriteDescriptor)
         
         // If the cocktail doesn't exist, create it!
