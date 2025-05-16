@@ -10,5 +10,3 @@ If you get a signing or bundle identifier error when building or running the app
 4. Go to the "Signing & Capabilities" tab.
 5. Change the "Bundle Identifier" field to something unique, e.g., `com.yourname.SendableCocktail`.
 6. Make sure your Apple Developer account is selected for Team.
-
-This is required for running on your own device or submitting to the App Store. 
