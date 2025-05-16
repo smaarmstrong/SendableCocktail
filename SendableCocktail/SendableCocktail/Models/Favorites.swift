@@ -8,34 +8,40 @@ class Favorites {
   var name: String
   @Relationship(deleteRule: .cascade)
   var cocktails: [Cocktail]?
-  
+  @Relationship(inverse: \User.favorites)
+  var user: User?
+
   init(
     name: String,
-    cocktails: [Cocktail]? = nil
+    cocktails: [Cocktail]? = nil,
+    user: User? = nil
   ) {
     self.name = name
     self.cocktails = cocktails
+    self.user = user
   }
 }
 
 final class FavoritesDTO: Sendable, Identifiable, Hashable {
   let name: String
   let cocktails: [CocktailDTO]?
-  
+  let user: UserDTO?
+
   init(
     name: String,
-    cocktails: [CocktailDTO]? = nil
+    cocktails: [CocktailDTO]? = nil,
+    user: UserDTO? = nil
   ) {
     self.name = name
     self.cocktails = cocktails
+    self.user = user
   }
-  
+
   static func == (lhs: FavoritesDTO, rhs: FavoritesDTO) -> Bool {
     lhs.name == rhs.name
   }
-  
+
   func hash(into hasher: inout Hasher) {
     hasher.combine(name)
   }
 }
-

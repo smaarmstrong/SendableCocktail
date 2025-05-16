@@ -1,9 +1,9 @@
 import Foundation
 
 struct CocktailDBResponse: Codable {
-    let drinks: [CocktailDBDrink]?
+  let drinks: [CocktailDBDrink]?
 }
 
 struct CocktailDBDrink: Codable {
-    let strDrink: String
-} 
+  let strDrink: String
+}
